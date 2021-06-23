@@ -8,7 +8,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 print("Done")
 
-# Directory to the dataset on my computer.
+# Directory to the dataset. (User can change it at will according their own download directory.)
 directory = "/home/maverick/MovieSentiment/Main/imdb.csv"
 
 data = pd.read_csv(directory)
