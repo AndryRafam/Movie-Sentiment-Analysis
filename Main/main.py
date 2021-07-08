@@ -8,24 +8,26 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 print("Done")
 
+nltk.download("stopwords")
+nltk.download("wordnet")
 # Directory to the dataset. (User can change it at will according their own download directory.)
-directory = "/home/maverick/MovieSentiment/Main/imdb.csv"
+directory = "imdb.csv"
 
 data = pd.read_csv(directory)
-stop_words = stopwords.words("english")
+stop_words = set(stopwords.words("english"))
 wordnet = WordNetLemmatizer()
 
 def text_preproc(x):
 	x = x.lower()
 	x = " ".join([word for word in x.split(" ") if word not in stop_words])
 	x = x.encode("ascii", "ignore").decode()
-	x = re.sub(r"https*\S+", " ", x)
-	x = re.sub(r"@\S+", " ", x)
-	x = re.sub(r"#\S+", " ", x)
-	x = re.sub(r"\",\w+", "", x)
+	x = re.sub("https*\S+", " ", x)
+	x = re.sub("@\S+", " ", x)
+	x = re.sub("#\S+", " ", x)
+	x = re.sub("\'\w+", "", x)
 	x = re.sub("[%s]" % re.escape(string.punctuation), " ", x)
-	x = re.sub(r"\w*\d+\w*", "", x)
-	x = re.sub(r"\s{2,}", " ", x)
+	x = re.sub("\w*\d+\w*", "", x)
+	x = re.sub("\s{2,}", " ", x)
 	return x
 	
 final_data = []
