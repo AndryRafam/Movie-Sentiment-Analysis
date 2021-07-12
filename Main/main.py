@@ -4,22 +4,24 @@ import pandas as pd
 import re
 import nltk
 import string
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
+#from nltk.corpus import stopwords
+#from nltk.stem import WordNetLemmatizer
+from gensim.utils import simple_preprocess
+from nltk.tokenize.treebank import TreebankWordDetokenizer
 print("Done")
 
-nltk.download("stopwords")
-nltk.download("wordnet")
+#nltk.download("stopwords")
+#nltk.download("wordnet")
 # Directory to the dataset. (User can change it at will according their own download directory.)
 directory = "imdb.csv"
 
-data = pd.read_csv(directory)
-stop_words = set(stopwords.words("english"))
-wordnet = WordNetLemmatizer()
+df = pd.read_csv(directory)
+#stop_words = set(stopwords.words("english"))
+#wordnet = WordNetLemmatizer()
 
 def text_preproc(x):
 	x = x.lower()
-	x = " ".join([word for word in x.split(" ") if word not in stop_words])
+	#x = " ".join([word for word in x.split(" ") if word not in stop_words])
 	x = x.encode("ascii", "ignore").decode()
 	x = re.sub("https*\S+", " ", x)
 	x = re.sub("@\S+", " ", x)
@@ -30,15 +32,27 @@ def text_preproc(x):
 	x = re.sub("\s{2,}", " ", x)
 	return x
 	
-final_data = []
-data_to_list = data["review"].values.tolist()
+temp = []
+data_to_list = df["review"].values.tolist()
 for i in range(len(data_to_list)):
-	final_data.append(text_preproc(data_to_list[i]))
-print(list(final_data[:5]))
+	temp.append(text_preproc(data_to_list[i]))
 
+def tokenize(y):
+	for x in y:
+		yield(simple_preprocess(str(x)))
+
+data_words = list(tokenize(temp))
+
+def detokenize(txt):
+	return TreebankWordDetokenizer().detokenize(txt)
+	
+final_data = []
+for i in range(len(data_words)):
+	final_data.append(detokenize(data_words[i]))
+print(final_data[:5])
 final_data = np.array(final_data)
 
-labels = np.array(data["sentiment"])
+labels = np.array(df["sentiment"])
 l = []
 for i in range(len(labels)):
 	if labels[i]=="negative":
@@ -85,10 +99,10 @@ model = Sequential([
 ])
 model.summary()
 model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-checkpoint = ModelCheckpoint("model_best.hdf5", save_best_only=True, save_weights_only=False)
-history = model.fit(x_train, y_train, epochs=3, validation_data=(x_val,y_val), callbacks=[checkpoint])
+checkpoint = ModelCheckpoint("model_best.hdf5", monitor="val_accuracy", verbose=1, save_best_only=True, save_weights_only=False)
+history = model.fit(x_train, y_train, epochs=3, validation_data=(x_val,y_val), verbose=2, callbacks=[checkpoint])
 
 model_best = tf.keras.models.load_model("model_best.hdf5")
-test_loss, test_acc, = model_best.evaluate(x_test, y_test, verbose=2)
-print("Model accuracy: {:.2f} %".format(100*test_acc))
-predictions = model_best.predict(x_test)
+test_loss, test_acc, = model_best.evaluate(x_test, y_test)
+print("Test accuracy: {:.2f} %".format(100*test_acc))
+print("Test loss: {:.2f} %".format(100*test_loss))
