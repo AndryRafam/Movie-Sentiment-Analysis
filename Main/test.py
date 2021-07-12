@@ -13,10 +13,11 @@ sentiment = ["Negative","Positive"]
 with open("tockenizer.pickle","rb") as handle:
 	tokenizer = pickle.load(handle)
 	
+string = input("\n❯❯ ")
 print("\n")
-string = input("❯❯ ")
 sequence = tokenizer.texts_to_sequences([string])
 test = pad_sequences(sequence,maxlen=max_len)
 predictions_data1= model_best.predict(test)
 score_data1 = predictions_data1[0]
+print("\n")
 print("{} ({:.2f} %)".format(sentiment[np.around(model_best(test),decimals=0).argmax(axis=1)[0]],100*np.max(score_data1)))
