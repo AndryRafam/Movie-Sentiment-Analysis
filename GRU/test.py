@@ -10,7 +10,7 @@ max_len = 200
 model_best = tf.keras.models.load_model("model_gru.hdf5")
 sentiment = ["Negative","Positive"]
 
-with open("tockenizer.pickle","rb") as handle:
+with open("tokenizer.pickle","rb") as handle:
 	tokenizer = pickle.load(handle)
 
 string = input("\n❯❯ ")

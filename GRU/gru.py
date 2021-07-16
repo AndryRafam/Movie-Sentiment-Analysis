@@ -10,43 +10,33 @@ random.seed(0)
 np.random.seed(0)
 tf.random.set_seed(42)
 tf.random.set_seed(42)
-#from nltk.corpus import stopwords
-#from nltk.stem import WordNetLemmatizer
-from gensim.utils import simple_preprocess
+
+from nltk.tokenize import word_tokenize
 from nltk.tokenize.treebank import TreebankWordDetokenizer
-print("Done")
 
-#nltk.download("stopwords")
-#nltk.download("wordnet")
-# Directory to the dataset. (User can change it at will according their own download directory.)
-directory = "imdb.csv"
+df = pd.read_csv("imdb.csv")
 
-df = pd.read_csv(directory)
-#stop_words = set(stopwords.words("english"))
-#wordnet = WordNetLemmatizer()
-
-def text_preproc(x):
+def preprocess(x):
 	x = x.lower()
-	#x = " ".join([word for word in x.split(" ") if word not in stop_words])
-	x = x.encode("ascii", "ignore").decode()
-	x = re.sub("https*\S+", " ", x)
-	x = re.sub("@\S+", " ", x)
-	x = re.sub("#\S+", " ", x)
-	x = re.sub("\'\w+", "", x)
-	x = re.sub("[%s]" % re.escape(string.punctuation), " ", x)
-	x = re.sub("\w*\d+\w*", "", x)
-	x = re.sub("\s{2,}", " ", x)
+	x = x.encode("ascii","ignore").decode()
+	x = re.sub("https*\S+"," ",x)
+	x = re.sub("@\S+"," ",x)
+	x = re.sub("#\S+"," ",x)
+	x = re.sub("\'\w+","",x)
+	x = re.sub("[%s]" % re.escape(string.punctuation)," ", x)
+	x = re.sub("\w*\d+\w*","",x)
+	x = re.sub("\s{2,}"," ",x)
 	return x
 	
 temp = []
 data_to_list = df["review"].values.tolist()
 for i in range(len(data_to_list)):
-	temp.append(text_preproc(data_to_list[i]))
-
+	temp.append(preprocess(data_to_list[i]))
+	
 def tokenize(y):
 	for x in y:
-		yield(simple_preprocess(str(x)))
-
+		yield(word_tokenize(str(x)))
+		
 data_words = list(tokenize(temp))
 
 def detokenize(txt):
@@ -57,6 +47,25 @@ for i in range(len(data_words)):
 	final_data.append(detokenize(data_words[i]))
 print(final_data[:5])
 final_data = np.array(final_data)
+
+import pickle
+from tensorflow.keras import layers
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras import backend as K
+from tensorflow.keras.callbacks import ModelCheckpoint
+from sklearn.model_selection import train_test_split
+
+max_words = 20000
+max_len = 200
+
+tokenizer = Tokenizer(num_words = max_words)
+tokenizer.fit_on_texts(final_data)
+sequences = tokenizer.texts_to_sequences(final_data)
+tweets = pad_sequences(sequences,maxlen=max_len)
+with open("tokenizer.pickle","wb") as handle:
+	pickle.dump(tokenizer,handle,protocol=pickle.HIGHEST_PROTOCOL)
+print(tweets)
 
 labels = np.array(df["sentiment"])
 l = []
@@ -69,46 +78,22 @@ l = np.array(l)
 labels = tf.keras.utils.to_categorical(l,2,dtype="int32")
 del l
 
-print(len(labels))
+x_train,x_test,y_train,y_test = train_test_split(tweets,labels,random_state=42)
+x_train,x_val,y_train,y_val = train_test_split(x_train,y_train,test_size=0.25,random_state=42)
 
-import pickle
-from tensorflow.keras.models import Sequential
-from tensorflow.keras import layers
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras import backend as K
-from tensorflow.keras.callbacks import ModelCheckpoint
-from sklearn.model_selection import train_test_split
-
-max_words = 20000
-max_len = 200
-
-tokenizer = Tokenizer(num_words=max_words)
-tokenizer.fit_on_texts(final_data)
-sequences = tokenizer.texts_to_sequences(final_data)
-tweets = pad_sequences(sequences, maxlen=max_len)
-with open("tockenizer.pickle","wb") as handle:
-	pickle.dump(tokenizer,handle,protocol=pickle.HIGHEST_PROTOCOL)	
-print(tweets)
-print(labels)
-
-x_train, x_test, y_train, y_test = train_test_split(tweets,labels,random_state=42)
-x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.25, random_state=42)
-print(len(x_train),len(x_val),len(x_test),len(y_train),len(y_val),len(y_test))
-
-model = Sequential([
-	layers.Embedding(max_words,128,input_length=max_len),
-	layers.GRU(64,return_sequences=True),
-	layers.GRU(64),
-	layers.Dense(2,activation="softmax"),
-])
+inputs = tf.keras.Input(shape=max_len,dtype="int32")
+x = layers.Embedding(max_words,128)(inputs)
+x = layers.GRU(64,return_sequences=True)(x)
+x = layers.GRU(64)(x)
+outputs = layers.Dense(2,activation="sigmoid")(x)
+model = tf.keras.Model(inputs,outputs)
 model.summary()
-model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-checkpoint = ModelCheckpoint("model_gru.hdf5", monitor="val_accuracy", verbose=1, save_best_only=True, save_weights_only=False)
-history = model.fit(x_train, y_train, epochs=5, validation_data=(x_val,y_val), verbose=2, callbacks=[checkpoint])
 
-model_gru = tf.keras.models.load_model("model_gru.hdf5")
-test_loss, test_acc, = model_gru.evaluate(x_test, y_test)
-print("Test accuracy: {:.2f} %".format(100*test_acc))
-print("Test loss: {:.2f} %".format(100*test_loss))
+model.compile(optimizer="adam",loss="binary_crossentropy",metrics=["accuracy"])
+checkpoint = ModelCheckpoint("model_gru.hdf5",monitor="val_accuracy",verbose=1,save_best_only=True,save_weights_only=False)
+model.fit(x_train,y_train,batch_size=32,epochs=5,validation_data=(x_val,y_val),callbacks=[checkpoint])
+best = tf.keras.models.load_model("model_gru.hdf5")
+loss,acc = best.evaluate(x_test,y_test,verbose=2)
+predictions = best.evaluate(x_test)
+print("Test acc: {:.2f} %".format(100*acc))
+print("Test loss: {:.2f} %".format(100*loss))
